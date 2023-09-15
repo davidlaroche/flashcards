@@ -1,0 +1,6 @@
+streamlit
+langchain
+tempfile
+csv
+io
+pandas
