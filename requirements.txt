@@ -1,8 +1,5 @@
 streamlit
 langchain
-tempfile
-csv
+openai
 io
 pandas
-os
-dotenv
