@@ -10,6 +10,10 @@ import tempfile
 from langchain.docstore.document import Document
 import csv
 from io import StringIO
+import os
+from dotenv import load_dotenv
+load_dotenv()
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 st.sidebar.title('Flash cards')
 
@@ -49,7 +53,7 @@ def questionGenerator(prompt, job, difficulty):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
-        openai_api_key="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"
+        openai_api_key=OPENAI_API_KEY
     )
     # system_template =
     # f"""
@@ -77,7 +81,7 @@ def bulletPointAnswer(front, prompt):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
-        openai_api_key="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"
+        openai_api_key=OPENAI_API_KEY
     )
     system_template = """Vous êtes un expert en coaching et en enseignement du développement personnel.
     Votre tâche consiste à répondre à une question de manière claire et concise, en pas plus de 3 points clefs, en vous appuyant uniquement sur '{prompt}'

@@ -4,3 +4,5 @@ tempfile
 csv
 io
 pandas
+os
+dotenv

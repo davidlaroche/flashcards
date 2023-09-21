@@ -10,6 +10,12 @@ import tempfile
 from langchain.docstore.document import Document
 import csv
 from io import StringIO
+import pandas as pd
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 st.sidebar.title('Flash cards')
 
@@ -29,9 +35,7 @@ style = """
 
 JOB_DESCRIPTIONS = {
     'Life coach': 'développer ses compétences de coach professionnel dans la vie de tous les jours',
-    'Business coach': 'développer ses compétences de coach pour faire croître son entreprise',
-    'Manager': 'devenir un manager d\'entreprise accompli',
-    'Self development': 'se développer sur le plan personnel',
+    'Business coach': 'développer ses compétences de coach pour faire croître son entreprise'
 }
 
 st.markdown(style, unsafe_allow_html=True)
@@ -46,17 +50,17 @@ def get_taxonomy_instruction(rua):
     else:
         return ""
 
-def questionGenerator(prompt, job, difficulty):
+def questionGenerator(prompt, job, difficulty, personal):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
-        openai_api_key="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"
+        openai_api_key=OPENAI_API_KEY
     )
     taxonomy_instruction = get_taxonomy_instruction(rua)
     system_template = f"""
     Vous êtes un expert en coaching et en enseignement du développement personnel.
     Votre tâche consiste à créer une question courte et concise basée sur le document : "{prompt}"
-    pour un étudiant visant à {job_description}. {taxonomy_instruction}. Difficulté: {difficulty}.
+    pour un étudiant visant à {job_description}. L'étudiant veut: {personal}. {taxonomy_instruction}. Difficulté: {difficulty}.
     """
     system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
     human_template = """Based on the prompt: '{prompt}', please generate a relevant, short, concise question."""
@@ -72,7 +76,7 @@ def bulletPointAnswer(front, prompt):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
-        openai_api_key="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"
+        openai_api_key=OPENAI_API_KEY
     )
     system_template = """Vous êtes un expert en coaching et en enseignement du développement personnel.
     Votre tâche consiste à répondre à une question de manière claire et concise, en vous appuyant uniquement sur '{prompt}'.
@@ -94,7 +98,7 @@ def getFeedback(front, user_input, back):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.2,
-        openai_api_key="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"
+        openai_api_key=OPENAI_API_KEY
     )
     system_template = """Vous êtes un expert en coaching et en enseignement du développement personnel, et devez adresser un feedback concis à l'étudiant qui a répondu à la question: '{front}'
     La réponse attendue est : '{back}'.
@@ -149,13 +153,12 @@ def load_flashcards_from_csv(uploaded_file):
     next(reader)
     for row in reader:
         params, front, back  = row
-        job, difficulty, temperature = params.split('_')
+        job, difficulty = params.split('_')
         flashcards.append({
             'front': front,
             'back': back,
             'job': job,
             'difficulty': difficulty,
-            'temperature': temperature,
             'taxonomy': rua
         })
     return flashcards
@@ -166,7 +169,7 @@ def export_flashcards_to_csv(flashcards, title="Flashcards", filename='flashcard
         writer.writerow([title, "", ""])  # CSV title row
         writer.writerow(["Params", "Question", "Answer"])  # header
         for card in flashcards:
-            params = f"{card['job']}_{card['difficulty']}_{card['temperature']}_{card['taxonomy']}"
+            params = f"{card['job']}_{card['difficulty']}_{card['taxonomy']}"
             writer.writerow([params, card['front'], card['back']])
 
 # Initialize session_states
@@ -191,16 +194,8 @@ if 'back_content' not in st.session_state:
 if 'current_flashcard_index' not in st.session_state:
     st.session_state.current_flashcard_index = 0
 
-# ------------ Upload CSV ------------
-st.sidebar.header("Upload")
-uploaded_file = st.sidebar.file_uploader('Upload a CSV', type=["csv"])
-if uploaded_file:
-    if st.sidebar.button('Load Flashcards'):
-        st.session_state.flashcards = load_flashcards_from_csv(uploaded_file)
-        st.write('Flashcards loaded!')
-
 # ------------ Settings ------------
-st.sidebar.header("Settings")
+st.sidebar.header("Start here 👇")
 
 if 'txt_content' not in st.session_state:
     prompt = st.sidebar.text_input('Enter your prompt (or upload a .txt file below)')
@@ -215,11 +210,11 @@ if uploaded_file:
     prompt = txt_content
 
 # Params
-job = st.sidebar.selectbox('Select desired job', ['Life coach', 'Business coach', 'Manager', 'Self Development'])
+personal = st.sidebar.text_input('On a personal level, what do you wish to achieve with coaching ?')
+job = st.sidebar.selectbox('Select desired job', ['Life coach', 'Business coach'])
 job_description = JOB_DESCRIPTIONS.get(job, job)
 difficulty = st.sidebar.selectbox('Select difficulty level', ['Facile', 'Moyenne', 'Avancée'])
-temperature = st.sidebar.slider(label='Temperature', min_value=0.0, max_value=1.0, value=0.2, step=0.1)
-rua = st.sidebar.selectbox('Taxonomy', ['Remember','Understand','Apply'])
+rua = st.sidebar.selectbox('Select card type', ['Remember','Understand','Apply'])
 
 go_button = st.sidebar.button('Go')
 if go_button:
@@ -232,7 +227,6 @@ if go_button:
                 'back': st.session_state.back_content,
                 'job': job,
                 'difficulty': difficulty,
-                'temperature': temperature,
                 'taxonomy': rua
             })
             st.session_state.current_flashcard_index = len(st.session_state.flashcards) - 1
@@ -251,7 +245,7 @@ else:
         st.write("Please set all parameters and press 'Go'.")
 
 # Select a flashcard from the list
-flashcard_options = [f"Flashcard {i+1} ({card['job']}_{card['difficulty']}_{card['temperature']}_{card['taxonomy']})" for i, card in enumerate(st.session_state.flashcards)]
+flashcard_options = [f"Flashcard {i+1} ({card['job']}_{card['difficulty']}_{card['taxonomy']})" for i, card in enumerate(st.session_state.flashcards)]
 if flashcard_options:
     selected_flashcard = st.sidebar.selectbox("Choose a flashcard:", flashcard_options, index=st.session_state.current_flashcard_index or 0)
     if selected_flashcard and st.session_state.current_flashcard_index != flashcard_options.index(selected_flashcard):
@@ -262,7 +256,13 @@ if flashcard_options:
 else:
     selected_flashcard = None
 
-
+# ------------ CSV ------------
+st.sidebar.header("Upload")
+uploaded_file = st.sidebar.file_uploader('Upload a CSV', type=["csv"])
+if uploaded_file:
+    if st.sidebar.button('Load Flashcards'):
+        st.session_state.flashcards = load_flashcards_from_csv(uploaded_file)
+        st.write('Flashcards loaded!')
 # ------------ Export ------------
 st.sidebar.header("Export")
 title = st.sidebar.text_input("Enter the CSV title:", "apples_and_bananas")
