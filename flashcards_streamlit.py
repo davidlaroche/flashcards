@@ -12,6 +12,7 @@ import csv
 from io import StringIO
 import pandas as pd
 import openai
+import os
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -48,7 +49,7 @@ def get_taxonomy_instruction(rua):
     else:
         return ""
 
-def questionGenerator(prompt, job, difficulty, personal):
+def questionGenerator(prompt, job, difficulty):
     chat = ChatOpenAI(
         model="gpt-4",
         temperature=0.7
@@ -57,7 +58,7 @@ def questionGenerator(prompt, job, difficulty, personal):
     system_template = f"""
     Vous êtes un expert en coaching et en enseignement du développement personnel.
     Votre tâche consiste à créer une question courte et concise basée sur le document : "{prompt}"
-    pour un étudiant visant à {job_description}. L'étudiant veut: {personal}. {taxonomy_instruction}. Difficulté: {difficulty}.
+    pour un étudiant visant à {job_description}. {taxonomy_instruction}. Difficulté: {difficulty}.
     """
     system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
     human_template = """Based on the prompt: '{prompt}', please generate a relevant, short, concise question."""
@@ -158,14 +159,19 @@ def load_flashcards_from_csv(uploaded_file):
         })
     return flashcards
 
-def export_flashcards_to_csv(flashcards, title="Flashcards", filename='flashcards.csv'):
-    with open(filename, 'w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow([title, "", ""])  # CSV title row
-        writer.writerow(["Params", "Question", "Answer"])  # header
-        for card in flashcards:
-            params = f"{card['job']}_{card['difficulty']}_{card['taxonomy']}"
-            writer.writerow([params, card['front'], card['back']])
+def export_flashcards_to_csv(flashcards, title="Flashcards"):
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([title, "", ""])  # CSV title row
+    writer.writerow(["Params", "Question", "Answer"])  # header
+    for card in flashcards:
+        params = f"{card['job']}_{card['difficulty']}_{card['taxonomy']}"
+        writer.writerow([params, card['front'], card['back']])
+    
+    # Get the content of the output and return it
+    content = output.getvalue()
+    output.close()
+    return content
 
 # Initialize session_states
 if 'user_input' not in st.session_state:
@@ -198,18 +204,41 @@ else:
     prompt = st.session_state.txt_content
 
 # File
-uploaded_file = st.sidebar.file_uploader('Upload a .txt file', type=["txt"])
-if uploaded_file:
-    txt_content = uploaded_file.read().decode("utf-8")
-    st.session_state.txt_content = txt_content
-    prompt = txt_content
+#uploaded_file = st.sidebar.file_uploader('Upload a .txt file', type=["txt"])
+#if uploaded_file:
+#    txt_content = uploaded_file.read().decode("utf-8")
+#    st.session_state.txt_content = txt_content
+#    prompt = txt_content
+    
+template_dir = 'Fiches pédagogiques'
+try:
+    file_names = sorted([file[:-4] for file in os.listdir(template_dir) if file.endswith('.txt')])
+except FileNotFoundError:
+    st.sidebar.write(f"Folder {template_dir} not found.")
+    file_names = []
+file_names.insert(0, "Upload your own file")
+selected_file = st.sidebar.selectbox('Choose a template file or upload your own', file_names)
+if selected_file == "Upload your own file":
+    uploaded_file = st.sidebar.file_uploader('Upload a .txt file', type=["txt"])
+    if uploaded_file:
+        txt_content = uploaded_file.read().decode("utf-8")
+        st.session_state.txt_content = txt_content
+        prompt = txt_content
+else:
+    try:
+        with open(os.path.join(template_dir, selected_file + '.txt'), 'r', encoding='utf-8') as file:
+            txt_content = file.read()
+            st.session_state.txt_content = txt_content
+            prompt = txt_content
+    except FileNotFoundError:
+        st.sidebar.write(f"File {selected_file}.txt not found in {template_dir}.")
+
 
 # Params
-personal = st.sidebar.text_input('On a personal level, what do you wish to achieve with coaching ?')
 job = st.sidebar.selectbox('Select desired job', ['Life coach', 'Business coach'])
 job_description = JOB_DESCRIPTIONS.get(job, job)
-difficulty = st.sidebar.selectbox('Select difficulty level', ['Facile', 'Moyenne', 'Avancée'])
-rua = st.sidebar.selectbox('Select card type', ['Remember','Understand','Apply'])
+difficulty = st.sidebar.selectbox('Select difficulty level', ['Facile', 'Avancée'])
+rua = st.sidebar.selectbox('Select card type', ['Remember','Understand','Apply'],index=1)
 
 go_button = st.sidebar.button('Go')
 if go_button:
@@ -240,6 +269,7 @@ else:
         st.write("Please set all parameters and press 'Go'.")
 
 # Select a flashcard from the list
+st.sidebar.write("Once you've generated some cards, they'll appear here.")
 flashcard_options = [f"Flashcard {i+1} ({card['job']}_{card['difficulty']}_{card['taxonomy']})" for i, card in enumerate(st.session_state.flashcards)]
 if flashcard_options:
     selected_flashcard = st.sidebar.selectbox("Choose a flashcard:", flashcard_options, index=st.session_state.current_flashcard_index or 0)
@@ -248,19 +278,16 @@ if flashcard_options:
         st.session_state.front_content = st.session_state.flashcards[st.session_state.current_flashcard_index]['front']
         st.session_state.back_content = st.session_state.flashcards[st.session_state.current_flashcard_index]['back']
         st.session_state.side = 'front'
+        
 else:
     selected_flashcard = None
 
-# ------------ CSV ------------
-st.sidebar.header("Upload")
-uploaded_file = st.sidebar.file_uploader('Upload a CSV', type=["csv"])
-if uploaded_file:
-    if st.sidebar.button('Load Flashcards'):
-        st.session_state.flashcards = load_flashcards_from_csv(uploaded_file)
-        st.write('Flashcards loaded!')
 # ------------ Export ------------
-st.sidebar.header("Export")
-title = st.sidebar.text_input("Enter the CSV title:", "apples_and_bananas")
-if st.sidebar.button('Export Flashcards'):
-    export_flashcards_to_csv(st.session_state.flashcards, filename=f'./Flaschard CSVs/{title}.csv')
-    st.write(f'Flashcards exported to {title}.csv!')
+if flashcard_options:
+    if st.sidebar.download_button(
+            label="Download Flashcards",
+            data=export_flashcards_to_csv(st.session_state.flashcards, title='Flashcards'),
+            file_name='flashcards.csv',
+            mime='text/csv'
+        ):
+        st.sidebar.write(f'Flashcards downloaded as flashcards.csv!')
