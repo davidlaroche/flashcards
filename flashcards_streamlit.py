@@ -271,6 +271,8 @@ else:
 # Select a flashcard from the list
 
 flashcard_options = [f"Flashcard {i+1} ({card['job']}_{card['difficulty']}_{card['taxonomy']})" for i, card in enumerate(st.session_state.flashcards)]
+if not flashcard_options:
+    st.sidebar.write("Once you've generated some cards, they'll appear here.")
 if flashcard_options:
     selected_flashcard = st.sidebar.selectbox("Choose a flashcard:", flashcard_options, index=st.session_state.current_flashcard_index or 0)
     if selected_flashcard and st.session_state.current_flashcard_index != flashcard_options.index(selected_flashcard):
@@ -281,7 +283,6 @@ if flashcard_options:
         
 else:
     selected_flashcard = None
-    st.sidebar.write("Once you've generated some cards, they'll appear here.")
 # ------------ Export ------------
 if flashcard_options:
     if st.sidebar.download_button(
