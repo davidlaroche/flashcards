@@ -11,6 +11,7 @@ from langchain.docstore.document import Document
 import csv
 from io import StringIO
 import pandas as pd
+import openai
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
