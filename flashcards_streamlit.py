@@ -132,7 +132,6 @@ def display_back(front_content, back_content, user_input):
         with col3:
             if st.button("✅ Je le savais déjà ! ✅"):
                 feedback_placeholder.empty()
-            # Feedback Button and display
             if st.button("Get Feedback"):
                 feedback = getFeedback(st.session_state.front_content, st.session_state.user_input, st.session_state.back_content)
                 feedback_placeholder.markdown(f"<div class='card'><b>{feedback}</b></div>", unsafe_allow_html=True)
@@ -167,8 +166,6 @@ def export_flashcards_to_csv(flashcards, title="Flashcards"):
     for card in flashcards:
         params = f"{card['job']}_{card['difficulty']}_{card['taxonomy']}"
         writer.writerow([params, card['front'], card['back']])
-    
-    # Get the content of the output and return it
     content = output.getvalue()
     output.close()
     return content
