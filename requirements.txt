@@ -3,3 +3,4 @@ langchain
 openai
 io
 pandas
+os
