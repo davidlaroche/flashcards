@@ -13,6 +13,7 @@ from io import StringIO
 import pandas as pd
 import openai
 import os
+import random
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -41,29 +42,41 @@ st.markdown(style, unsafe_allow_html=True)
 
 def get_taxonomy_instruction(rua):
     if rua == "Remember":
-        return "Formattez la questions sous forme de texte à trous, pour tester la mémoire directe de l'étudiant. Masquez un seul mot: un concept clef, central à l'idée."
+        return random.choice(["Formattez la question sous forme de choix multiples avec une liste à puces, pour tester la mémoire directe de l'étudiant.",
+                "Créez une question Vrai ou Faux pour tester la capacité de l'étudiant à identifier des informations exactes.",
+                "Créez une question à trou, où l'étudiant doit remplir le blanc avec le terme ou le concept approprié, centrée sur un concept clé."])
     elif rua == "Understand":
-        return "La question devrait inciter l'étudiant à expliquer les concepts ou des idées."
+        return random.choice([
+            "Créez une question qui guide l'étudiant à interpréter des informations ou des idées, démontrant leur compréhension.",
+            "Rédigez une question qui guide l'étudiant à résumer des informations ou des idées principales.",
+            "Élaborez une question qui amène l'étudiant à inférer ou faire des déductions, basées sur des informations données.",
+            "Concevez une question qui requiert que l'étudiant explique des concepts, des idées, des procédures, ou des phénomènes."
+        ])
     elif rua == "Apply":
-        return "La question devrait guider l'étudiant à appliquer des connaissances ou des concepts à une nouvelle situation."
+        return random.choice([
+            "Formulez une question qui demande à l'étudiant d'exécuter une procédure ou une méthode dans une situation donnée.",
+            "Concevez une question qui guide l'étudiant à mettre en œuvre ou appliquer des concepts ou des idées à une nouvelle situation.",
+            "Créez une question qui encourage l'étudiant à résoudre un problème, en appliquant des connaissances et des compétences acquises.",
+            "Élaborez une question qui amène l'étudiant à démontrer comment appliquer un concept ou une théorie dans un contexte pratique.",
+            "Rédigez une question qui incite l'étudiant à utiliser des informations pour accomplir une tâche ou résoudre un problème concret.",
+            "Formulez une question qui demande à l'étudiant de montrer comment un concept ou une idée peut être utilisé dans un contexte réel."
+        ])
     else:
         return ""
-    
-def get_personal(personal):
-        return f"La situation personnelle de l'étudiant est la suivante : '{personal}'."
 
 def questionGenerator(prompt, job, difficulty, personal=None):
     chat = ChatOpenAI(
         model="gpt-4",
-        temperature=0.7
+        temperature=0.5
     )
     taxonomy_instruction = get_taxonomy_instruction(rua)
     if personal:
-        personal_arg = get_personal(personal)
         system_template = f"""
         Vous êtes un expert en coaching et en enseignement du développement personnel.
         Votre tâche consiste à créer une question courte et concise basée sur le document : "{prompt}"
-        pour un étudiant visant à {job_description}. {personal_arg}
+        pour un étudiant visant à {job_description}.
+        La situation personnelle de l'étudiant est la suivante : '{personal}'.
+        Ne formulez pas de questions complexes, composées, ni au mode subjonctif. Formatez la question en Markdown, en plusieurs lignes si nécessaire, et sans gras.
         {taxonomy_instruction}. 
         Difficulté: {difficulty}.
         """
@@ -71,12 +84,13 @@ def questionGenerator(prompt, job, difficulty, personal=None):
         system_template = f"""
         Vous êtes un expert en coaching et en enseignement du développement personnel.
         Votre tâche consiste à créer une question courte et concise basée sur le document : "{prompt}"
-        pour un étudiant visant à {job_description}.
+        pour un étudiant visant à {job_description}. 
+        Ne formulez pas de questions complexes, composées, ni au mode subjonctif. Formatez la question en Markdown, en plusieurs lignes si nécessaire, et sans gras.
         {taxonomy_instruction}. 
         Difficulté: {difficulty}.
         """
     system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
-    human_template = """Based on the prompt: '{prompt}', please generate a relevant, short, concise question."""
+    human_template = """Basé sur le document: '{prompt}', formulez une question pertinente, courte et concise."""
     human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
     chat_prompt = ChatPromptTemplate.from_messages(
         [system_message_prompt, human_message_prompt]
@@ -88,16 +102,24 @@ def questionGenerator(prompt, job, difficulty, personal=None):
 def bulletPointAnswer(front, prompt):
     chat = ChatOpenAI(
         model="gpt-4",
-        temperature=0.7
+        temperature=0.5
     )
-    system_template = """Vous êtes un expert en coaching et en enseignement du développement personnel.
-    Votre tâche consiste à répondre à une question de manière claire et concise, en vous appuyant uniquement sur '{prompt}'.
-    Vous pouvez formatter la réponse sous la forme de 3 points clef. Si la question est un texte à trous, identifiez et présentez clairement le mot manquant.
-    Les points clefs ne peuvent pas dépasser 30 mots chacun. Au début de votre réponse, vous indiquerez une synthèse en gras, en moins de 25 mots.
-    Vous énoncerez vos réponses sous formes de vérités générales.
+    system_template = """
+    Vous êtes un expert en coaching et en développement personnel.
+    Votre tâche consiste à répondre à une question de manière claire et concise, en vous basant sur '{prompt}'.
+    - Si la question est de type 'choix multiples', 'vrai ou faux' ou 'remplissez les blancs', identifiez et présentez clairement la réponse correcte.
+    - Si la question est un texte à trous, identifiez et présentez clairement le mot manquant.
+    - Vous pouvez formater votre réponse en trois points clefs, chacun ne dépassant pas 30 mots.
+    - Commencez votre réponse par une synthèse en gras, en moins de 25 mots.
+    - Vos réponses doivent être formulées comme des vérités générales et doivent strictement répondre à la question posée. Évitez tout contenu superflu ou hors sujet.
+
     """
+
     system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
-    human_template = """La question est: '{front}'. Veuillez fournir une réponse en vous basant sur '{prompt}'."""
+
+    human_template = """
+    La question est: '{front}'. Veuillez fournir une réponse basée sur '{prompt}', en suivant strictement le format et les directives fournies.
+    """
     human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
     chat_prompt = ChatPromptTemplate.from_messages(
         [system_message_prompt, human_message_prompt]
@@ -126,6 +148,24 @@ def getFeedback(front, user_input, back):
     result = chain.run(front=front, user_input=user_input, back=back)
     return result
 
+def getExample(front, prompt, personal, back):
+    chat = ChatOpenAI(
+        model="gpt-4",
+        temperature=0.2
+    )
+    system_template = """Vous êtes un expert en coaching et en enseignement du développement personnel, et devez illustrer d'un exemple la réponse '{back}' à la question: '{front}'. Vous devez vous servir de '{prompt}'. Créez un scénario fictif. La réponse ne doit pas dépasser 90 mots. Restez toujours dans une démarche bienveillante et pédagogue.
+    """
+    system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
+    human_template = """Illustrer la réponse '{back}' à la question {front}. Personnalisez la réponse à l'étudiant: {personal}"""
+    human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
+    chat_prompt = ChatPromptTemplate.from_messages(
+        [system_message_prompt, human_message_prompt]
+    )
+    chain = LLMChain(llm=chat, prompt=chat_prompt)
+    result = chain.run(front=front, prompt=prompt, personal=personal, back=back)
+    return result
+
+
 def display_front(front):
     """"Displays the question, and an input box to gather user_input"""
     st.markdown(f"<div class='card'><b>{front}</b></div>", unsafe_allow_html=True)
@@ -138,15 +178,20 @@ def display_back(front_content, back_content, user_input):
         st.markdown(f"<div class='card'><b>Answer:</b>\n\n{back_content}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='card'><b>Your Answer:</b>\n\n{user_input}</div>", unsafe_allow_html=True)
     feedback_placeholder = st.empty()
+    example_placeholder = st.empty()
     with st.container():
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.button("🔁 Je ne le savais pas. 🔁")
+            st.button("⛔ Difficile ⛔")
             if st.button('Flip to Question'):
                 st.session_state.side = 'front'
+        with col2:
+            st.button("🟠 Moyen 🟠")
+            if st.button("Get Example"):
+                example = getExample(st.session_state.front_content, prompt, personal, st.session_state.back_content)
+                example_placeholder.markdown(f"<div class='card'><b>{example}</b></div>", unsafe_allow_html=True)
         with col3:
-            if st.button("✅ Je le savais déjà ! ✅"):
-                feedback_placeholder.empty()
+            st.button("✅ Facile ✅")
             if st.button("Get Feedback"):
                 feedback = getFeedback(st.session_state.front_content, st.session_state.user_input, st.session_state.back_content)
                 feedback_placeholder.markdown(f"<div class='card'><b>{feedback}</b></div>", unsafe_allow_html=True)
@@ -251,7 +296,7 @@ personal = None
 
 job = st.sidebar.selectbox('Choississez votre voie', ['Life coach', 'Business coach'])
 job_description = JOB_DESCRIPTIONS.get(job, job)
-difficulty = st.sidebar.selectbox('Choississez la difficulté', ['Facile', 'Avancée'])
+difficulty = st.sidebar.selectbox('Choississez la difficulté', ['Débutant', 'Avancé'])
 rua = st.sidebar.selectbox('Choississez le type de carte', ['Remember','Understand','Apply'],index=1)
 st.sidebar.header("Optionnel (WIP)")
 personal = st.sidebar.text_input('Quelle est ta situation personnelle ?')
